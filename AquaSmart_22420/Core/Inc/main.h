@@ -47,7 +47,6 @@ typedef enum
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -79,6 +78,10 @@ void Error_Handler(void);
 #define PDM_OUT_GPIO_Port GPIOC
 #define B1_Pin GPIO_PIN_0
 #define B1_GPIO_Port GPIOA
+#define ADC_Sensor1_Pin GPIO_PIN_1
+#define ADC_Sensor1_GPIO_Port GPIOA
+#define ADC_Sensor2_Pin GPIO_PIN_3
+#define ADC_Sensor2_GPIO_Port GPIOA
 #define I2S3_WS_Pin GPIO_PIN_4
 #define I2S3_WS_GPIO_Port GPIOA
 #define SPI1_SCK_Pin GPIO_PIN_5
@@ -117,8 +120,10 @@ void Error_Handler(void);
 #define I2S3_SCK_GPIO_Port GPIOC
 #define I2S3_SD_Pin GPIO_PIN_12
 #define I2S3_SD_GPIO_Port GPIOC
-#define Sensor_Supply_Pin GPIO_PIN_1
-#define Sensor_Supply_GPIO_Port GPIOD
+#define Sensor1_Supply_Pin GPIO_PIN_1
+#define Sensor1_Supply_GPIO_Port GPIOD
+#define Sensor2_Supply_Pin GPIO_PIN_2
+#define Sensor2_Supply_GPIO_Port GPIOD
 #define Audio_RST_Pin GPIO_PIN_4
 #define Audio_RST_GPIO_Port GPIOD
 #define OTG_FS_OverCurrent_Pin GPIO_PIN_5

@@ -39,9 +39,18 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MEASURE_TIME 	 300
+#define SENSOR1_TIME 	 400
+#define SENSOR2_TIME 	 500
+#define LEDS_TIME	 	 300
 #define SEND_DATA_TIME 	 10000
 
+/*ADC channels*/
+#define ADC_Channel1 1
+#define ADC_Channel2 2
+#define ADC_Channel3 3
+#define ADC_Channel4 4
+
+/*PH sensor params*/
 #define ID_ph_sensor 1
 
 #define range_ph_acido 750 	 	// Only for test, real value is 2.
@@ -53,6 +62,18 @@
 #define ph_setup_period 50		// Test time to setting up
 #define ph_average 4			// number of measurements to make for 1 measure.
 
+/*Turbidity sensor params*/
+#define ID_turbidity_sensor 2
+
+#define range_turb_min 750  	 	// Only for test.
+#define range_turb_basico 800		// Only for test.
+#define range_turb_max 900		// Only for test.
+
+#define turb_measure_period 700	// Test time to measure.
+#define turb_sleep_period 5500	// Test time to sleep
+#define turb_setup_period 65	// Test time to setting up
+#define turb_average 4			// number of measurements to make for 1 measure.
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -62,6 +83,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -76,19 +98,43 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
   .stack_size = 512 * 4
 };
-/* Definitions for myTaskMeasure */
-osThreadId_t myTaskMeasureHandle;
-const osThreadAttr_t myTaskMeasure_attributes = {
-  .name = "myTaskMeasure",
-  .priority = (osPriority_t) osPriorityLow2,
+/* Definitions for myTaskSensor1 */
+osThreadId_t myTaskSensor1Handle;
+const osThreadAttr_t myTaskSensor1_attributes = {
+  .name = "myTaskSensor1",
+  .priority = (osPriority_t) osPriorityLow4,
   .stack_size = 512 * 4
 };
 /* Definitions for myTaskLoRa */
 osThreadId_t myTaskLoRaHandle;
 const osThreadAttr_t myTaskLoRa_attributes = {
   .name = "myTaskLoRa",
-  .priority = (osPriority_t) osPriorityLow1,
+  .priority = (osPriority_t) osPriorityLow2,
   .stack_size = 512 * 4
+};
+/* Definitions for myTaskSensor2 */
+osThreadId_t myTaskSensor2Handle;
+const osThreadAttr_t myTaskSensor2_attributes = {
+  .name = "myTaskSensor2",
+  .priority = (osPriority_t) osPriorityLow4,
+  .stack_size = 512 * 4
+};
+/* Definitions for myTaskLEDs */
+osThreadId_t myTaskLEDsHandle;
+const osThreadAttr_t myTaskLEDs_attributes = {
+  .name = "myTaskLEDs",
+  .priority = (osPriority_t) osPriorityLow3,
+  .stack_size = 512 * 4
+};
+/* Definitions for myQueueSensor1 */
+osMessageQueueId_t myQueueSensor1Handle;
+const osMessageQueueAttr_t myQueueSensor1_attributes = {
+  .name = "myQueueSensor1"
+};
+/* Definitions for myQueueSensor2 */
+osMessageQueueId_t myQueueSensor2Handle;
+const osMessageQueueAttr_t myQueueSensor2_attributes = {
+  .name = "myQueueSensor2"
 };
 /* USER CODE BEGIN PV */
 
@@ -101,9 +147,12 @@ static void MX_I2C1_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_ADC2_Init(void);
 void StartDefaultTask(void *argument);
-void StartTaskMeasure(void *argument);
+void StartTaskSensor1(void *argument);
 void StartTaskLoRa(void *argument);
+void StartTaskSensor2(void *argument);
+void StartTaskLEDs(void *argument);
 
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
@@ -121,6 +170,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   fsm_sensor_t fsm_s1;
+  fsm_sensor_t fsm_s2;
 
   //fsm_t* fsm_LoRa;
 
@@ -148,6 +198,7 @@ int main(void)
   MX_I2S3_Init();
   MX_SPI1_Init();
   MX_ADC1_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -170,6 +221,13 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of myQueueSensor1 */
+  myQueueSensor1Handle = osMessageQueueNew (1, sizeof(sensor_t), &myQueueSensor1_attributes);
+
+  /* creation of myQueueSensor2 */
+  myQueueSensor2Handle = osMessageQueueNew (2, sizeof(sensor_t), &myQueueSensor2_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -178,11 +236,17 @@ int main(void)
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of myTaskMeasure */
-  myTaskMeasureHandle = osThreadNew(StartTaskMeasure, &fsm_s1, &myTaskMeasure_attributes);
+  /* creation of myTaskSensor1 */
+  myTaskSensor1Handle = osThreadNew(StartTaskSensor1, &fsm_s1, &myTaskSensor1_attributes);
 
   /* creation of myTaskLoRa */
   myTaskLoRaHandle = osThreadNew(StartTaskLoRa, NULL, &myTaskLoRa_attributes);
+
+  /* creation of myTaskSensor2 */
+  myTaskSensor2Handle = osThreadNew(StartTaskSensor2, &fsm_s2, &myTaskSensor2_attributes);
+
+  /* creation of myTaskLEDs */
+  myTaskLEDsHandle = osThreadNew(StartTaskLEDs, NULL, &myTaskLEDs_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -300,6 +364,56 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief ADC2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC2_Init(void)
+{
+
+  /* USER CODE BEGIN ADC2_Init 0 */
+
+  /* USER CODE END ADC2_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC2_Init 1 */
+
+  /* USER CODE END ADC2_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
+  */
+  hadc2.Instance = ADC2;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.ScanConvMode = DISABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.DMAContinuousRequests = DISABLE;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC2_Init 2 */
+
+  /* USER CODE END ADC2_Init 2 */
 
 }
 
@@ -434,7 +548,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin 
-                          |Sensor_Supply_Pin|Audio_RST_Pin, GPIO_PIN_RESET);
+                          |Sensor1_Supply_Pin|Sensor2_Supply_Pin|Audio_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : CS_I2C_SPI_Pin */
   GPIO_InitStruct.Pin = CS_I2C_SPI_Pin;
@@ -479,9 +593,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(CLK_IN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin LD6_Pin 
-                           Sensor_Supply_Pin Audio_RST_Pin */
+                           Sensor1_Supply_Pin Sensor2_Supply_Pin Audio_RST_Pin */
   GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin 
-                          |Sensor_Supply_Pin|Audio_RST_Pin;
+                          |Sensor1_Supply_Pin|Sensor2_Supply_Pin|Audio_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -525,24 +639,22 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */ 
 }
 
-/* USER CODE BEGIN Header_StartTaskMeasure */
+/* USER CODE BEGIN Header_StartTaskSensor1 */
 /**
-* @brief Function implementing the myTaskMeasure thread.
+* @brief Function implementing the myTaskSensor1 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTaskMeasure */
-void StartTaskMeasure(void *argument)
+/* USER CODE END Header_StartTaskSensor1 */
+void StartTaskSensor1(void *argument)
 {
-  /* USER CODE BEGIN StartTaskMeasure */
-
+  /* USER CODE BEGIN StartTaskSensor1 */
 	uint32_t tDelay = 0;
 	sensor_t sensor1;
 
     fsm_sensor_t* fsm_s1 = (fsm_sensor_t*)argument;
 
-    sensor_initialization(&sensor1, ID_ph_sensor, Sensor_Supply_Pin, range_ph_acido, range_ph_basico, range_ph_max, ph_setup_period, ph_sleep_period, ph_measure_period, ph_average);
-
+    sensor_initialization(&sensor1, ID_ph_sensor, Sensor1_Supply_Pin, ADC_Channel1, range_ph_acido, range_ph_basico, range_ph_max, ph_setup_period, ph_sleep_period, ph_measure_period, ph_average);
     fsm_sensor_init(fsm_s1, &sensor1);
 
     tDelay = osKernelGetTickCount();
@@ -551,12 +663,13 @@ void StartTaskMeasure(void *argument)
   for(;;)
   {
 	fsm_fire(&(fsm_s1->fsm));
+	osMessageQueuePut (myQueueSensor1Handle, fsm_s1->param, 0, 0);
 
-//	HAL_GPIO_TogglePin(LD6_GPIO_Port, LD6_Pin);
-    tDelay += pdMS_TO_TICKS(MEASURE_TIME);
+	//	HAL_GPIO_TogglePin(LD6_GPIO_Port, LD6_Pin);
+    tDelay += pdMS_TO_TICKS(SENSOR1_TIME);
     osDelayUntil(tDelay);
   }
-  /* USER CODE END StartTaskMeasure */
+  /* USER CODE END StartTaskSensor1 */
 }
 
 /* USER CODE BEGIN Header_StartTaskLoRa */
@@ -583,6 +696,98 @@ void StartTaskLoRa(void *argument)
     osDelayUntil(tDelay);
   }
   /* USER CODE END StartTaskLoRa */
+}
+
+/* USER CODE BEGIN Header_StartTaskSensor2 */
+/**
+* @brief Function implementing the myTaskSensor2 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskSensor2 */
+void StartTaskSensor2(void *argument)
+{
+  /* USER CODE BEGIN StartTaskSensor2 */
+	uint32_t tDelay = 0;
+		sensor_t sensor2;
+
+	    fsm_sensor_t* fsm_s2 = (fsm_sensor_t*)argument;
+
+	    sensor_initialization(&sensor2, ID_turbidity_sensor, Sensor2_Supply_Pin, ADC_Channel2, range_turb_min, range_turb_basico, range_turb_max, turb_setup_period, turb_sleep_period, turb_measure_period, turb_average);
+	    fsm_sensor_init(fsm_s2, &sensor2);
+
+	    tDelay = osKernelGetTickCount();
+	/* Infinite loop */
+	  /* Infinite loop */
+	  for(;;)
+	  {
+		fsm_fire(&(fsm_s2->fsm));
+		osMessageQueuePut (myQueueSensor2Handle, fsm_s2->param, 0, 0);
+		tDelay += pdMS_TO_TICKS(SENSOR2_TIME);
+	    osDelayUntil(tDelay);
+	  }
+  /* USER CODE END StartTaskSensor2 */
+}
+
+/* USER CODE BEGIN Header_StartTaskLEDs */
+/**
+* @brief Function implementing the myTaskLEDs thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskLEDs */
+void StartTaskLEDs(void *argument)
+{
+  /* USER CODE BEGIN StartTaskLEDs */
+	uint32_t tDelay = 0;
+	sensor_t sensor1;
+	sensor_t sensor2;
+
+	tDelay = osKernelGetTickCount();
+
+  /* Infinite loop */
+  for(;;)
+  {
+		osMessageQueueGet (myQueueSensor1Handle, &sensor1, NULL, 0);
+		osMessageQueueGet (myQueueSensor2Handle, &sensor2, NULL, 0);
+
+
+		if(sensor1.measuring == TRUE || sensor2.measuring == TRUE) /*LED BLUE => MEASURING*/
+		{
+			HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, SET);
+			HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, RESET);
+		}
+		else
+		{
+			if(sensor1.sleeping == TRUE && sensor2.sleeping == TRUE)
+			{
+				HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, RESET);
+				if(sensor1.error == TRUE || sensor2.error == TRUE) /*RED LED => SLEEPING SOMETHING WRONG*/
+				{
+					HAL_GPIO_WritePin(LD5_GPIO_Port, LD5_Pin, SET);
+					HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, RESET);
+				}
+				else	/*GREEN LED => SLEEPING ALL OK*/
+				{
+					HAL_GPIO_WritePin(LD5_GPIO_Port, LD5_Pin, RESET);
+					HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, SET);
+				}
+
+			}
+			else /*STATE UNREACHABLE*/
+			{
+				HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, RESET);
+				HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, RESET);
+			}
+		}
+
+		if(sensor1.alarm == TRUE || sensor2.alarm == TRUE) HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, SET);
+		else HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, RESET);
+
+		tDelay += pdMS_TO_TICKS(SENSOR2_TIME);
+	    osDelayUntil(tDelay);
+  }
+  /* USER CODE END StartTaskLEDs */
 }
 
 /**
