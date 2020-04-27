@@ -18,7 +18,6 @@
 #include "LoRa_comm.h"
 
 ADC_HandleTypeDef hadc1;
-ADC_HandleTypeDef hadc2;
 
 enum{
 	  Measure,
@@ -97,11 +96,11 @@ void measuring (fsm_t* this) {
 	fsm_sensor_t* punt = (fsm_sensor_t*) this;
 	sensor_t* config = punt->param;
 
-	if(config->adc_channel == 1)
-	{
-		data = HAL_ADC_GetValue(&hadc1);
-	}
-	else data = HAL_ADC_GetValue(&hadc2);
+//	if(config->adc_channel == 1)
+//	{
+	HAL_Delay(100);
+//	}
+//	else data = HAL_ADC_GetValue(&hadc2);
 
 	config->data_recovered = config->data_recovered + data;
 	config->measure_count = config->measure_count +1;
@@ -113,8 +112,9 @@ void process_data (fsm_t* this) {
 	sensor_t* config = punt->param;
 	config->data_average = config->data_recovered/config->measure_count;
 
-	if(config->adc_channel == 1)	HAL_ADC_Stop(&hadc1);
-	else HAL_ADC_Stop(&hadc2);
+//	if(config->adc_channel == 1)
+	HAL_ADC_Stop(&hadc1);
+//	else HAL_ADC_Stop(&hadc2);
 
 	if (config->data_average <= config->threshold_H && config->data_average >= config->threshold_L)
 	{
@@ -162,8 +162,9 @@ void setting_up (fsm_t* this) {
 	config->setup_timer = HAL_GetTick() + config->setup_period;
 	HAL_GPIO_WritePin(GPIOD, config->supply_Pin, SET);
 
-	if (config->adc_channel == 1)	HAL_ADC_Start(&hadc1);
-	else HAL_ADC_Start(&hadc2);
+	//if (config->adc_channel == 1)
+		HAL_ADC_Start(&hadc1);
+	//else HAL_ADC_Start(&hadc2);
 
 	config->measuring = TRUE;
 	config->sleeping = FALSE;

@@ -48,8 +48,8 @@ AquaSmart_22420.bin \
 all: AquaSmart_22420.elf secondary-outputs
 
 # Tool invocations
-AquaSmart_22420.elf: $(OBJS) $(USER_OBJS) D:\Usuarios\Documents\Universidad\LSEL\Proyecto_AquaSmart\Proyecto_LSEL_Grupo4\AquaSmart_22420\STM32F407VGTX_FLASH.ld
-	arm-none-eabi-gcc -o "AquaSmart_22420.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\Usuarios\Documents\Universidad\LSEL\Proyecto_AquaSmart\Proyecto_LSEL_Grupo4\AquaSmart_22420\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="AquaSmart_22420.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+AquaSmart_22420.elf: $(OBJS) $(USER_OBJS) D:\Usuarios\Documents\Universidad\LSEL\Proyecto_AquaSmart\AquaSmart_22420\STM32F407VGTX_FLASH.ld
+	arm-none-eabi-gcc -o "AquaSmart_22420.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\Usuarios\Documents\Universidad\LSEL\Proyecto_AquaSmart\AquaSmart_22420\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="AquaSmart_22420.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

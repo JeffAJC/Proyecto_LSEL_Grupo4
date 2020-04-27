@@ -83,7 +83,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-ADC_HandleTypeDef hadc2;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -147,7 +146,6 @@ static void MX_I2C1_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_ADC2_Init(void);
 void StartDefaultTask(void *argument);
 void StartTaskSensor1(void *argument);
 void StartTaskLoRa(void *argument);
@@ -198,7 +196,6 @@ int main(void)
   MX_I2S3_Init();
   MX_SPI1_Init();
   MX_ADC1_Init();
-  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -368,56 +365,6 @@ static void MX_ADC1_Init(void)
 }
 
 /**
-  * @brief ADC2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_ADC2_Init(void)
-{
-
-  /* USER CODE BEGIN ADC2_Init 0 */
-
-  /* USER CODE END ADC2_Init 0 */
-
-  ADC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN ADC2_Init 1 */
-
-  /* USER CODE END ADC2_Init 1 */
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
-  */
-  hadc2.Instance = ADC2;
-  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc2.Init.ScanConvMode = DISABLE;
-  hadc2.Init.ContinuousConvMode = DISABLE;
-  hadc2.Init.DiscontinuousConvMode = DISABLE;
-  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc2.Init.NbrOfConversion = 1;
-  hadc2.Init.DMAContinuousRequests = DISABLE;
-  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_2;
-  sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC2_Init 2 */
-
-  /* USER CODE END ADC2_Init 2 */
-
-}
-
-/**
   * @brief I2C1 Initialization Function
   * @param None
   * @retval None
@@ -548,7 +495,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin 
-                          |Sensor1_Supply_Pin|Sensor2_Supply_Pin|Audio_RST_Pin, GPIO_PIN_RESET);
+                          |Sensor1_Supply_Pin|Audio_RST_Pin|Sensor2_Supply_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : CS_I2C_SPI_Pin */
   GPIO_InitStruct.Pin = CS_I2C_SPI_Pin;
@@ -593,9 +540,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(CLK_IN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin LD6_Pin 
-                           Sensor1_Supply_Pin Sensor2_Supply_Pin Audio_RST_Pin */
+                           Sensor1_Supply_Pin Audio_RST_Pin Sensor2_Supply_Pin */
   GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin 
-                          |Sensor1_Supply_Pin|Sensor2_Supply_Pin|Audio_RST_Pin;
+                          |Sensor1_Supply_Pin|Audio_RST_Pin|Sensor2_Supply_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -652,6 +599,8 @@ void StartTaskSensor1(void *argument)
 	uint32_t tDelay = 0;
 	sensor_t sensor1;
 
+	ADC_ChannelConfTypeDef sConfig = {0};
+
     fsm_sensor_t* fsm_s1 = (fsm_sensor_t*)argument;
 
     sensor_initialization(&sensor1, ID_ph_sensor, Sensor1_Supply_Pin, ADC_Channel1, range_ph_acido, range_ph_basico, range_ph_max, ph_setup_period, ph_sleep_period, ph_measure_period, ph_average);
@@ -662,6 +611,19 @@ void StartTaskSensor1(void *argument)
   /* Infinite loop */
   for(;;)
   {
+
+	/*Select ADC Channel 1*/
+
+	HAL_ADC_Stop(&hadc1);
+	sConfig.Channel = ADC_CHANNEL_1;
+	sConfig.Rank = 1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	HAL_ADC_Start(&hadc1);
 	fsm_fire(&(fsm_s1->fsm));
 	osMessageQueuePut (myQueueSensor1Handle, fsm_s1->param, 0, 0);
 
@@ -709,23 +671,37 @@ void StartTaskSensor2(void *argument)
 {
   /* USER CODE BEGIN StartTaskSensor2 */
 	uint32_t tDelay = 0;
-		sensor_t sensor2;
+	sensor_t sensor2;
 
-	    fsm_sensor_t* fsm_s2 = (fsm_sensor_t*)argument;
+	ADC_ChannelConfTypeDef sConfig = {0};
 
-	    sensor_initialization(&sensor2, ID_turbidity_sensor, Sensor2_Supply_Pin, ADC_Channel2, range_turb_min, range_turb_basico, range_turb_max, turb_setup_period, turb_sleep_period, turb_measure_period, turb_average);
-	    fsm_sensor_init(fsm_s2, &sensor2);
+	fsm_sensor_t* fsm_s2 = (fsm_sensor_t*)argument;
 
-	    tDelay = osKernelGetTickCount();
+	sensor_initialization(&sensor2, ID_turbidity_sensor, Sensor2_Supply_Pin, ADC_Channel2, range_turb_min, range_turb_basico, range_turb_max, turb_setup_period, turb_sleep_period, turb_measure_period, turb_average);
+	fsm_sensor_init(fsm_s2, &sensor2);
+
+	tDelay = osKernelGetTickCount();
 	/* Infinite loop */
-	  /* Infinite loop */
-	  for(;;)
-	  {
+	/* Infinite loop */
+	for(;;)
+	{
+		/*Select ADC Channel 2*/
+		HAL_ADC_Stop(&hadc1);
+		sConfig.Channel = ADC_CHANNEL_9;
+		sConfig.Rank = 1;
+		sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+
+		if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		HAL_ADC_Start(&hadc1);
 		fsm_fire(&(fsm_s2->fsm));
+
 		osMessageQueuePut (myQueueSensor2Handle, fsm_s2->param, 0, 0);
 		tDelay += pdMS_TO_TICKS(SENSOR2_TIME);
-	    osDelayUntil(tDelay);
-	  }
+		osDelayUntil(tDelay);
+	}
   /* USER CODE END StartTaskSensor2 */
 }
 
