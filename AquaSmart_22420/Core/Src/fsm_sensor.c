@@ -19,13 +19,16 @@
 
 ADC_HandleTypeDef hadc1;
 
+long adc_timer;
+
 enum{
+	  Pre_setup,
+	  Setup,
 	  Measure,
 	  Warning,
 	  Process,
 	  Saving,
-	  Sleeping,
-	  Setup
+	  Sleeping
 }sensor_state;
 
 int data_saved(fsm_t* this){ return 1; }
@@ -51,6 +54,10 @@ int timer_sleep (fsm_t* this) {
 	sensor_t* config = punt->param;
 	if(config->active && HAL_GetTick()>=config->sleep_timer) return 1;
 	else return 0;
+}
+
+int timer_adc (fsm_t* this) {
+	return (HAL_GetTick()>adc_timer);
 }
 
 int timer_setup (fsm_t* this) {
@@ -98,7 +105,7 @@ void measuring (fsm_t* this) {
 
 //	if(config->adc_channel == 1)
 //	{
-	HAL_Delay(100);
+	data = HAL_ADC_GetValue(&hadc1);
 //	}
 //	else data = HAL_ADC_GetValue(&hadc2);
 
@@ -110,7 +117,7 @@ void measuring (fsm_t* this) {
 void process_data (fsm_t* this) {
 	fsm_sensor_t* punt = (fsm_sensor_t*) this;
 	sensor_t* config = punt->param;
-	config->data_average = config->data_recovered/config->measure_count;
+	config->data_average = config->data_recovered;
 
 //	if(config->adc_channel == 1)
 	HAL_ADC_Stop(&hadc1);
@@ -152,6 +159,14 @@ void sleep (fsm_t* this) { // led orange
 	}
 }
 
+void init_adc (fsm_t* this) {
+	HAL_ADC_Stop(&hadc1);
+
+	adc_timer = HAL_GetTick() + 1000;
+
+}
+
+
 void setting_up (fsm_t* this) {
 	fsm_sensor_t* punt = (fsm_sensor_t*) this;
 	sensor_t* config = punt->param;
@@ -189,10 +204,11 @@ void save_data (fsm_t* this)
 }
 
 fsm_trans_t trans_sensor[] = {
-  { Sleeping, timer_sleep,   Setup,    setting_up},
+  { Sleeping,  timer_sleep,   Pre_setup,  init_adc},
+  { Pre_setup, timer_adc,     Setup,      setting_up},
   { Setup,    timer_setup,   Measure,  measuring},
-  { Measure,  timer_measure, Measure,  measuring},
-  { Measure,  contador,      Process,  process_data},
+  { Measure,  timer_measure, Process,  process_data},
+  //{ Measure,  contador,      Process,  process_data},
   { Process,  error,         Warning,  alert},
   { Process,  no_error,      Saving,   save_data},
   { Warning,  warned, 		 Measure,  measuring},

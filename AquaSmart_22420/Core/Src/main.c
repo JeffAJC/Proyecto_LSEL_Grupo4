@@ -59,7 +59,7 @@
 
 #define ph_measure_period 600	// Test time to measure.
 #define ph_sleep_period 5000	// Test time to sleep
-#define ph_setup_period 50		// Test time to setting up
+#define ph_setup_period 1000		// Test time to setting up
 #define ph_average 4			// number of measurements to make for 1 measure.
 
 /*Turbidity sensor params*/
@@ -71,8 +71,9 @@
 
 #define turb_measure_period 700	// Test time to measure.
 #define turb_sleep_period 5500	// Test time to sleep
-#define turb_setup_period 65	// Test time to setting up
+#define turb_setup_period 1000	// Test time to setting up
 #define turb_average 4			// number of measurements to make for 1 measure.
+
 
 /* USER CODE END PD */
 
@@ -136,6 +137,8 @@ const osMessageQueueAttr_t myQueueSensor2_attributes = {
   .name = "myQueueSensor2"
 };
 /* USER CODE BEGIN PV */
+
+t_bool sensor1_ON, sensor2_ON;
 
 /* USER CODE END PV */
 
@@ -614,19 +617,27 @@ void StartTaskSensor1(void *argument)
 
 	/*Select ADC Channel 1*/
 
-	HAL_ADC_Stop(&hadc1);
-	sConfig.Channel = ADC_CHANNEL_1;
-	sConfig.Rank = 1;
-	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-
-	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	if(fsm_s1->fsm.current_state <= 4 && sensor2_ON == FALSE)
 	{
-		Error_Handler();
-	}
-	HAL_ADC_Start(&hadc1);
-	fsm_fire(&(fsm_s1->fsm));
-	osMessageQueuePut (myQueueSensor1Handle, fsm_s1->param, 0, 0);
+		sensor1_ON = TRUE;
+		sConfig.Channel = ADC_CHANNEL_1;
+		sConfig.Rank = 1;
+		sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
 
+		if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		fsm_fire(&(fsm_s1->fsm));
+		osMessageQueuePut (myQueueSensor1Handle, fsm_s1->param, 0, 0);
+	}
+	else sensor1_ON = FALSE;
+
+	if(fsm_s1->fsm.current_state > 4)
+	{
+		fsm_fire(&(fsm_s1->fsm));
+		osMessageQueuePut (myQueueSensor1Handle, fsm_s1->param, 0, 0);
+	}
 	//	HAL_GPIO_TogglePin(LD6_GPIO_Port, LD6_Pin);
     tDelay += pdMS_TO_TICKS(SENSOR1_TIME);
     osDelayUntil(tDelay);
@@ -686,19 +697,29 @@ void StartTaskSensor2(void *argument)
 	for(;;)
 	{
 		/*Select ADC Channel 2*/
-		HAL_ADC_Stop(&hadc1);
-		sConfig.Channel = ADC_CHANNEL_9;
-		sConfig.Rank = 1;
-		sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-
-		if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+		if(fsm_s2->fsm.current_state <= 4 && sensor1_ON == FALSE)
 		{
-			Error_Handler();
-		}
-		HAL_ADC_Start(&hadc1);
-		fsm_fire(&(fsm_s2->fsm));
+			sensor2_ON = TRUE;
+			sConfig.Channel = ADC_CHANNEL_9;
+			sConfig.Rank = 1;
+			sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
 
-		osMessageQueuePut (myQueueSensor2Handle, fsm_s2->param, 0, 0);
+			if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+			{
+				Error_Handler();
+			}
+			fsm_fire(&(fsm_s2->fsm));
+			osMessageQueuePut (myQueueSensor2Handle, fsm_s2->param, 0, 0);
+		}
+		else sensor2_ON = FALSE;
+
+		if(fsm_s2->fsm.current_state > 4)
+		{
+			fsm_fire(&(fsm_s2->fsm));
+
+			osMessageQueuePut (myQueueSensor2Handle, fsm_s2->param, 0, 0);
+		}
+
 		tDelay += pdMS_TO_TICKS(SENSOR2_TIME);
 		osDelayUntil(tDelay);
 	}
